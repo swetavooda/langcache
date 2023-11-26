@@ -55,6 +55,7 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
+test/evadb_data/*
 
 # Translations
 *.mo
