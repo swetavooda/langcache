@@ -9,7 +9,7 @@ def load_requirements(filename='requirements.txt'):
         return file.read().splitlines()
     
 setuptools.setup(
-    name="langcache",  # Replace with your own package name
+    name="langcache",
     version="0.0.1",
     author="Georgia Tech Database Group",
     author_email="jiashenc@gatech.edu",
@@ -20,7 +20,6 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
-        # "License :: OSI Approved :: MIT License",
         "Development Status :: 1 - Planning"
     ],
     python_requires='>=3.6',

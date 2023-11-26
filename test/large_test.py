@@ -43,7 +43,7 @@ random.shuffle(qid_list)
 
 train_qid_list, test_qid_list = set(qid_list[:split_idx]), set(qid_list[split_idx:])
 
-cache = Cache(tune_frequency=0, tune_policy="recall")
+cache = Cache("langcache", tune_frequency=0, tune_policy="recall")
 for train_qid in tqdm(train_qid_list):
     # Insert cache.
     cache.put(id_to_question[train_qid], str(train_qid))

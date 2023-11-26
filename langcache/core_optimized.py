@@ -1,6 +1,6 @@
 import os
 import evadb
-from openai import OpenAI
+from openai import OpenAI, OpenAIError
 import string
 import random
 import multiprocessing as mp
@@ -44,7 +44,7 @@ class Cache:
         self.init = False
 
         # Threshold distance and tuning hyper-parameter.
-        self.distance_threshold = 4
+        self.distance_threshold = 0.5
         self.tune_time = 0
         self.tune_frequency = tune_frequency
         self.tune_policy = tune_policy
@@ -100,17 +100,36 @@ class Cache:
         # Tune the threshold distance.
         self.distance_threshold = tune(self.stats_list, self.tune_policy)
 
-    def _top_k(self, key: str, k: int = 1):
+    def extract_features(self):
+        if not self.init:
+            return None
+        self.cursor.query(
+                f"""
+                CREATE TABLE IF NOT EXISTS {self.cache_name}_features AS SELECT SentenceFeature(key), key, value FROM {self.cache_name}"""
+            ).df()
+        self.cursor.query(
+                f"""
+                CREATE INDEX {self.cache_name} ON {self.cache_name}_features (features) USING FAISS
+            """
+            ).df()
+        
+    def _top_k_features(self, key: str, k: int = 1):
         # Rewrite key double quotes.
         key = self._replace_str(key)
 
         # Query similar questions.
         df = self.cursor.query(
             f"""
-            SELECT T.key, T.value, Similarity(SentenceFeature("{key}"), SentenceFeature(T.key)) FROM
-            (SELECT * FROM {self.cache_name} ORDER BY Similarity(SentenceFeature("{key}"), SentenceFeature(key)) LIMIT 1) AS T
+            SELECT T.key, T.value, Similarity(SentenceFeature("{key}"), T.features) FROM
+            (
+                SELECT key, value, features
+                FROM {self.cache_name}_features
+                ORDER BY Similarity(SentenceFeature("{key}"), features)
+                LIMIT 1
+            ) AS T
         """
         ).df()
+
 
         # Extract results.
         ret_distance = float(df["distance"][0])
@@ -133,13 +152,33 @@ class Cache:
         if self.tune_frequency != 0 and self.tune_time % self.tune_frequency == 0:
             self._evaluate_and_tune(key, ret_key, ret_distance)
         self.tune_time += 1
-
+        
         # Return results.
         if ret_distance < self.distance_threshold:
             return ret_value
         else:
             return None
+    def get_features(self, key: str):
+        if not self.init:
+            return None
 
+        # Rewrite key double quotes.
+        key = self._replace_str(key)
+
+        # Get top k results.
+        ret_key, ret_value, ret_distance = self._top_k_features(key)
+
+        # Tune threshold hyper-parameter.
+        if self.tune_frequency != 0 and self.tune_time % self.tune_frequency == 0:
+            self._evaluate_and_tune(key, ret_key, ret_distance)
+        self.tune_time += 1
+        
+        # Return results.
+        if ret_distance < self.distance_threshold:
+            return ret_value
+        else:
+            return None
+        
     def put(self, key: str, value: str):
         key = self._replace_str(key)
         value = self._replace_str(value)
@@ -147,7 +186,7 @@ class Cache:
         if not self.init:
             self.cursor.query(
                 f"""
-                CREATE TABLE {self.cache_name} (key TEXT(1000), value TEXT(1000))
+                CREATE TABLE IF NOT EXISTS {self.cache_name} (key TEXT(1000), value TEXT(1000))
             """
             ).df()
             self.cursor.query(
@@ -157,7 +196,12 @@ class Cache:
             ).df()
             self.cursor.query(
                 f"""
-                CREATE INDEX {self.cache_name} ON {self.cache_name} (SentenceFeature(key)) USING FAISS
+                CREATE TABLE IF NOT EXISTS embeddings AS SELECT key, SentenceFeature(key) FROM {self.cache_name}
+            """
+            ).df()
+            self.cursor.query(
+                f"""
+                INSERT INTO embeddings (key, features) VALUES ("{key}", "{value}")
             """
             ).df()
             self.init = True

@@ -20,6 +20,5 @@ class OpenAI(openai.OpenAI):
     # TODO: Add remaining args
     def __init__(self, cache):
         super(OpenAI, self).__init__()
-
         self.cache = cache
         self.chat.completions = LangCacheCompletions(self)
