@@ -49,6 +49,7 @@ completion = client.chat.completions.create(
  )
 ```
 
-
+## Optimization analysis for improving performance of LangCache
+[Eliminating the Sentence Feature Extractor overhead](https://github.com/swetavooda/langcache/blob/openai-integ/embedding-optimisation.ipynb)
 
 
